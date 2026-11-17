@@ -230,6 +230,7 @@
     .tile.road::before, .tile.road::after { display: none; }
     .tile.road span { width: 100%; height: 3px; border-top: 2px dashed #e2d9a080; }
     .tile.house { background: #648452; }
+    .tile.farm { background: #9a8b48; }
     .tile.shop { background: #3e7480; }
     .tile.park { background: #35784d; }
     .tile.factory { background: #73694a; }
@@ -313,8 +314,9 @@
       </div>
       <div class="top-actions">
         <select class="mode-select" id="mode-select" aria-label="게임 모드">
-          <option value="beginner">초보자 모드 · 14×14</option>
-          <option value="general">일반 모드 · 22×22</option>
+          <option value="beginner">초보자 모드 · 20×20</option>
+          <option value="general">일반 모드 · 30×30</option>
+          <option value="endless">무한 모드 · 30×30</option>
         </select>
         <button class="button primary" id="toggle-time" type="button">▶ 도시 운영 시작</button>
         <button class="button" id="reset-city" type="button">↻ 새 도시</button>
@@ -325,6 +327,7 @@
       <div class="stat"><span class="stat-label">보유 자금</span><strong class="stat-value" id="money">₩5,000</strong></div>
       <div class="stat"><span class="stat-label">주민</span><strong class="stat-value" id="population">0 <small>명</small></strong></div>
       <div class="stat"><span class="stat-label">행복도</span><strong class="stat-value" id="happiness">65 <small>/ 100</small></strong></div>
+      <div class="stat"><span class="stat-label">식량 재고</span><strong class="stat-value" id="food">60 <small>/ 300인분</small></strong></div>
       <div class="stat"><span class="stat-label">일일 순수입</span><strong class="stat-value" id="income">₩0</strong></div>
       <div class="stat"><span class="stat-label">전력 (공급 / 수요)</span><strong class="stat-value" id="power">0 <small>kW</small></strong></div>
       <div class="stat"><span class="stat-label">고용 주민</span><strong class="stat-value" id="workforce">0 <small>/ 0명</small></strong></div>
@@ -350,7 +353,7 @@
           <button class="button tool-button" id="bulldoze" type="button">⌫ 철거 도구</button>
           <button class="button tool-button active" id="build-mode" type="button">＋ 건설 모드</button>
         </div>
-        <p class="hint">주택이 일할 사람을 제공해요. 광산은 우라늄·희토류를 캐고, 원전·화학 공장이 연료와 원료로 소비합니다. 원전은 주거·상업·공원·화학 공장과 2칸, 화학 공장은 주택·공원과 1칸 떨어뜨려 지으세요. 철거 환급 40%.</p>
+        <p class="hint">주민이 있어야 운영을 시작할 수 있어요. 주민은 매일 식량을 먹으니 농장을 지어 식량을 생산하세요. 광산은 우라늄·희토류를 캐고, 원전·화학 공장이 연료와 원료로 소비합니다. 원전은 주거·상업·공원·화학 공장과 2칸, 화학 공장은 주택·공원과 1칸 떨어뜨려 지으세요. 철거 환급 40%.</p>
       </aside>
 
       <section class="city-panel" aria-label="도시 지도">
@@ -362,10 +365,10 @@
           <span class="weather">☀️ 맑음</span>
         </div>
         <div class="map-wrap">
-          <div class="map" id="map" role="grid" aria-label="14열 14행 도시 타일"></div>
+          <div class="map" id="map" role="grid" aria-label="20열 20행 도시 타일"></div>
         </div>
         <div class="map-footer">
-          <span>🌿 빈 땅 <span id="free-tiles">0</span>칸 · <span id="map-size">14×14</span></span>
+          <span>🌿 빈 땅 <span id="free-tiles">0</span>칸 · <span id="map-size">20×20</span></span>
           <span id="map-hint">전력과 환경을 살펴 도시를 계획하세요.</span>
         </div>
         <section class="building-details" id="building-details" aria-live="polite">
@@ -385,8 +388,8 @@
     const MODES = {
       beginner: {
         name: "초보자 모드",
-        width: 14,
-        height: 14,
+        width: 20,
+        height: 20,
         startingMoney: 10000,
         taxRate: 10,
         costMultiplier: 1,
@@ -398,8 +401,8 @@
       },
       general: {
         name: "일반 모드",
-        width: 22,
-        height: 22,
+        width: 30,
+        height: 30,
         startingMoney: 16000,
         taxRate: 8,
         costMultiplier: 1.5,
@@ -408,12 +411,27 @@
         solarOutput: 70,
         solarUpkeep: 250,
         pollutionMultiplier: 1.2
+      },
+      endless: {
+        name: "무한 모드",
+        width: 30,
+        height: 30,
+        startingMoney: 30000,
+        taxRate: 8,
+        costMultiplier: 1,
+        baseUpkeep: 0,
+        roadUpkeep: 2,
+        solarOutput: 100,
+        solarUpkeep: 30,
+        pollutionMultiplier: 0.75,
+        endless: true
       }
     };
 
     const CATALOG = [
       { id: "road", name: "도로", icon: "🛣️", cost: 120, description: "도로 유지비가 매일 나가요.", powerDemand: 0 },
       { id: "house", name: "주택", icon: "🏠", cost: 800, description: "주민 30명 · 주민세 수입", upkeep: 60, powerDemand: 12, residentCapacity: 30 },
+      { id: "farm", name: "농장", icon: "🌾", cost: 1500, description: "일자리 4개 · 하루 식량 30인분 생산", upkeep: 80, powerDemand: 0, workersRequired: 4, foodProduction: 30 },
       { id: "shop", name: "상가", icon: "🏪", cost: 2200, description: "일자리 8개 · 사업 수익", upkeep: 150, powerDemand: 20, businessIncome: 1800, workersRequired: 8 },
       { id: "park", name: "공원", icon: "🌳", cost: 900, description: "행복도 상승 · 전력 불필요", upkeep: 30, powerDemand: 0 },
       { id: "light", name: "경공업", icon: "🏭", cost: 5000, description: "일자리 16개 · 저공해 생산", upkeep: 350, powerDemand: 40, businessIncome: 5000, workersRequired: 16, pollution: 2 },
@@ -427,6 +445,7 @@
     ];
 
     const RESOURCE_NAMES = { uranium: "우라늄", rareEarth: "희토류" };
+    const FOOD_CAPACITY = 300;
     const catalogById = Object.fromEntries(CATALOG.map((building) => [building.id, building]));
     const mapElement = document.querySelector("#map");
     const buildListElement = document.querySelector("#build-list");
@@ -442,12 +461,14 @@
     let selectedBuilding = "house";
     let selectedTile = null;
     let resources = { uranium: 0, rareEarth: 0 };
+    let foodStock = 60;
     let demolishMode = false;
     let running = false;
     let timerId = null;
     let toastTimerId = null;
     let logEntries = [];
     let hasPlayerChanges = false;
+    let gameEnded = false;
 
     function showToast(message) {
       const toast = document.querySelector("#toast");
@@ -582,6 +603,11 @@
           resourceUse[resource] += amount * (counts[building.id] || 0) * activity[building.id];
         }
       }
+      const foodProduction = (counts.farm || 0) * catalogById.farm.foodProduction * activity.farm;
+      const foodAvailable = foodStock + foodProduction;
+      const foodConsumed = Math.min(foodAvailable, residents);
+      const foodCoverage = residents === 0 ? 1 : foodConsumed / residents;
+      const foodBalance = Math.min(FOOD_CAPACITY, foodAvailable - foodConsumed);
       const businessIncome = CATALOG.reduce((total, building) =>
         total + (counts[building.id] || 0) * (building.businessIncome || 0) * activity[building.id] * (1 - taxRate / 100), 0);
       const resourceBalance = {};
@@ -601,17 +627,20 @@
       const buildingUpkeep = CATALOG.reduce((total, building) =>
         total + (counts[building.id] || 0) * (building.upkeep || 0), 0);
       const dailyIncome = Math.round(taxIncome + businessIncome + commodityIncome - roadUpkeep - buildingUpkeep - mode.baseUpkeep);
-      const happiness = Math.max(0, Math.min(100, Math.round(
+      const happinessScore = Math.round(
         72 + (counts.park || 0) * 4 + Math.min(10, Math.floor(residents / 12))
         - pollution * mode.pollutionMultiplier * 0.7
         - Math.max(0, taxRate - 10) * 1.5
         - (counts.nuclear || 0) * 5
         - (residents - workersAvailable) / Math.max(1, residents) * 5
-      )));
+        - (1 - foodCoverage) * 75
+      );
+      const happiness = mode.endless ? happinessScore : Math.max(0, Math.min(100, happinessScore));
       return {
         counts, residents, workersAvailable, staffedWorkers, staffingRatios, activity,
         powerSupply, powerDemand, poweredRatio, dailyIncome, happiness,
-        resourceProduction, resourceUse, resourceConsumption, resourceBalance
+        resourceProduction, resourceUse, resourceConsumption, resourceBalance,
+        foodProduction, foodBalance, foodCoverage
       };
     }
 
@@ -638,6 +667,9 @@
       if (building.businessIncome) {
         items.push(["매출", `₩${Math.round(building.businessIncome * ratio / 24).toLocaleString("ko-KR")} / 시간`]);
       }
+      if (building.foodProduction) {
+        items.push(["식량 생산", `${building.foodProduction * ratio}인분 / 일`]);
+      }
       for (const [resource, amount] of Object.entries(building.resourceOutput || {})) {
         items.push([`${RESOURCE_NAMES[resource]} 생산`, `${(amount * ratio / 24).toFixed(2)} / 시간`]);
       }
@@ -654,10 +686,11 @@
     }
 
     function renderStats() {
-      const { counts, residents, workersAvailable, staffedWorkers, powerSupply, powerDemand, poweredRatio, dailyIncome, happiness } = getMetrics();
+      const { counts, residents, workersAvailable, staffedWorkers, powerSupply, powerDemand, poweredRatio, dailyIncome, happiness, foodCoverage } = getMetrics();
       document.querySelector("#money").textContent = `₩${money.toLocaleString("ko-KR")}`;
       document.querySelector("#population").innerHTML = `${residents} <small>명</small>`;
-      document.querySelector("#happiness").innerHTML = `${happiness} <small>/ 100</small>`;
+      document.querySelector("#happiness").innerHTML = `${happiness} <small>${mode.endless ? "무한" : "/ 100"}</small>`;
+      document.querySelector("#food").innerHTML = `${formatResource(foodStock)} <small>/ ${FOOD_CAPACITY}인분</small>`;
       document.querySelector("#income").textContent = `${dailyIncome < 0 ? "-" : ""}₩${Math.abs(dailyIncome).toLocaleString("ko-KR")}`;
       document.querySelector("#power").innerHTML = `${powerSupply} <small>/ ${powerDemand} kW</small>`;
       document.querySelector("#workforce").innerHTML = `${residents - workersAvailable} <small>/ ${residents}명</small>`;
@@ -670,16 +703,23 @@
       happinessElement.style.color = happiness < 40 ? "var(--danger)" : happiness >= 80 ? "var(--lime)" : "var(--text)";
       document.querySelector("#income").style.color = dailyIncome < 0 ? "var(--danger)" : "var(--lime)";
       document.querySelector("#power").style.color = poweredRatio < 1 ? "var(--danger)" : "var(--lime)";
-      document.querySelector("#city-status").textContent = running
+      document.querySelector("#city-status").textContent = gameEnded
+        ? happiness >= 100 ? "게임 클리어 · 행복도 100 달성" : "게임 오버 · 행복도가 0이 되었어요"
+        : running
         ? `${mode.name} 운영 중 · 세금 ${taxRate}% · 전력 공급률 ${Math.round(poweredRatio * 100)}%`
         : demolishMode
           ? "철거 모드 · 없앨 타일을 선택하세요"
           : `${mode.name} · 세금 ${taxRate}% · 근로 가능 ${workersAvailable}명`;
       document.querySelector("#tax-label").textContent = `${taxRate}%`;
       document.querySelector("#map").setAttribute("aria-label", `${mode.width}열 ${mode.height}행 도시 타일`);
-      document.querySelector("#map-hint").textContent = powerDemand > powerSupply
+      document.querySelector("#map-hint").textContent = residents > 0 && foodCoverage < 1
+        ? `식량 부족 · 주민 식사 공급률 ${Math.round(foodCoverage * 100)}%`
+        : powerDemand > powerSupply
         ? `전력 부족 · ${Math.round(poweredRatio * 100)}% 효율`
         : `고용 ${residents - workersAvailable}/${residents}명 · U ${resources.uranium} / 희토류 ${resources.rareEarth}`;
+      const timeButton = document.querySelector("#toggle-time");
+      timeButton.disabled = gameEnded;
+      if (gameEnded) timeButton.textContent = "게임 종료";
       document.querySelector("#building-rule").textContent = describeBuilding(catalogById[selectedBuilding]);
       renderDetails();
     }
@@ -764,6 +804,11 @@
     }
 
     function setRunning(nextRunning) {
+      if (nextRunning && gameEnded) return;
+      if (nextRunning && getMetrics().residents === 0) {
+        showToast("운영을 시작하려면 주민이 살 주택을 먼저 지어주세요.");
+        return;
+      }
       running = nextRunning;
       const button = document.querySelector("#toggle-time");
       button.textContent = running ? "Ⅱ 운영 일시정지" : "▶ 도시 운영 시작";
@@ -777,6 +822,13 @@
       renderStats();
     }
 
+    function finishGame(won) {
+      gameEnded = true;
+      setRunning(false);
+      addLog(won ? "행복도 100 달성 · 마을을 행복하게 만들었어요!" : "행복도가 0이 되었어요 · 마을 운영이 끝났습니다.", !won);
+      showToast(won ? "게임 클리어! 행복도 100을 달성했어요." : "게임 오버 · 행복도를 회복할 수 없어요.");
+    }
+
     function advanceDay() {
       const metrics = getMetrics();
       day += 1;
@@ -785,17 +837,25 @@
         uranium: metrics.resourceBalance.uranium,
         rareEarth: metrics.resourceBalance.rareEarth
       };
+      foodStock = metrics.foodBalance;
       hasPlayerChanges = true;
       if (money < 0) {
         money = 0;
         setRunning(false);
         addLog("자금이 바닥났어요. 세율을 조정하거나 운영비가 큰 건물을 철거하세요.", true);
         showToast("재정난으로 도시 운영이 멈췄어요.");
-      } else if (day % 3 === 0) {
-        const report = metrics.poweredRatio < 1
-          ? `전력 부족으로 공장 가동률이 ${Math.round(metrics.poweredRatio * 100)}%예요.`
-          : `순수입 ₩${metrics.dailyIncome.toLocaleString("ko-KR")} · 우라늄 ${resources.uranium} · 희토류 ${resources.rareEarth}`;
-        addLog(report, metrics.poweredRatio < 1);
+      } else {
+        const updatedMetrics = getMetrics();
+        if (!mode.endless && updatedMetrics.happiness <= 0) {
+          finishGame(false);
+        } else if (!mode.endless && updatedMetrics.happiness >= 100) {
+          finishGame(true);
+        } else if (day % 3 === 0) {
+          const report = metrics.poweredRatio < 1
+            ? `전력 부족으로 공장 가동률이 ${Math.round(metrics.poweredRatio * 100)}%예요.`
+            : `순수입 ₩${metrics.dailyIncome.toLocaleString("ko-KR")} · 식량 ${formatResource(foodStock)} · 우라늄 ${resources.uranium} · 희토류 ${resources.rareEarth}`;
+          addLog(report, metrics.poweredRatio < 1);
+        }
       }
       renderMap();
     }
@@ -820,7 +880,9 @@
       selectedBuilding = "house";
       selectedTile = null;
       resources = { uranium: 0, rareEarth: 0 };
+      foodStock = 60;
       demolishMode = false;
+      gameEnded = false;
       hasPlayerChanges = false;
       logEntries = [];
       seedCity();
